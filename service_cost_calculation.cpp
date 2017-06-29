@@ -148,7 +148,7 @@ size_t get_country_code_length(std::string phone_number)
 }
 
 
-
+std::string Type_call="";
 int countD=0;
 int main() {
 	while (true) {
@@ -184,11 +184,23 @@ int main() {
 		numberA_size = numberA.size();
 		numberB_size = numberB.size();
 
-
+		//std::cout << numberA << std::endl;
 		//std::cout << numberB << std::endl;
 		call_type_str = "";
 		if (numberA_size == 6) // we calculate call cost if we call from 6 digit number
 		{
+			mysql_get_call_price = "SELECT tariff_plan FROM account_database.phone_numbers where number='"+numberA+"'";
+			query_state=mysql_query(conn, mysql_get_call_price.c_str());
+			add_res=mysql_store_result(conn);
+			add_row=mysql_fetch_row(add_res);
+
+			if (add_row != NULL)
+			{
+
+			Type_call=add_row[0];
+			std::cout<<"TYPE->"<<Type_call<<std::endl;
+			mysql_free_result(add_res);
+
 			if (numberB_size >= 10) // Intercity, International, Hot Line calls
 			{
 				// we not interested in numberA because it's our number, otherwise in numberB
@@ -200,7 +212,7 @@ int main() {
 					country_code_length = get_country_code_length(numberB);
 					country_code = international_call_number_prefix + numberB.substr(3, country_code_length);
 
-					mysql_get_call_price = "SELECT tariff, round, round_price FROM call_tariff WHERE call_tariff.code = '"+country_code+"'";
+					mysql_get_call_price = "SELECT tariff, round, round_price FROM call_tariff WHERE call_tariff.code = '"+country_code+"' AND plan='"+Type_call+"'";
 					query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 					add_res=mysql_store_result(conn);
@@ -251,15 +263,15 @@ int main() {
 					add_row=NULL;
 
 					if (city_code==Kazakhstan_code){//if Kazakhstan
-                  //  std::cout<<"find KAZ"<<std::endl;
+                    std::cout<<"find KAZ"<<std::endl;
 						while (add_row == NULL && temp_number_size>3){
 							city_code = numberB.substr(0, temp_number_size);
 
-							 //std::cout<<city_code<<std::endl;
+							 std::cout<<city_code<<std::endl;
 
 
 							mysql_get_call_price = "SELECT tariff, round, round_price, add_text "
-									"FROM call_tariff WHERE left(code,2)='"+Kazakhstan_code+"' AND LOCATE('"+city_code+"',code)";
+									"FROM call_tariff WHERE left(code,2)='"+Kazakhstan_code+"' AND LOCATE('"+city_code+"',code) AND plan='"+Type_call+"'";
 							query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 							add_res=mysql_store_result(conn);
@@ -269,22 +281,22 @@ int main() {
 
 
 					}else {//if Russia
-						//std::cout<<"find RUS"<<std::endl;
+						std::cout<<"find RUS"<<std::endl;
 
 						while (add_row == NULL && temp_number_size>3){
 							city_code = numberB.substr(0, temp_number_size);
 
 
-							//std::cout<<city_code<<std::endl;
+							std::cout<<city_code<<std::endl;
 							std::string Russia_STR="Россия";
 							mysql_get_call_price = "SELECT tariff, round, round_price, add_text "
-									"FROM call_tariff WHERE country='"+Russia_STR+"' AND LOCATE('"+city_code+"',code)";
+									"FROM call_tariff WHERE country='"+Russia_STR+"' AND LOCATE('"+city_code+"',code) AND plan='"+Type_call+"'";
 							query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 							add_res=mysql_store_result(conn);
 							add_row=mysql_fetch_row(add_res);
 							temp_number_size--;
-							//std::cout<<"find RUS2"<<std::endl;
+							std::cout<<"find RUS2"<<std::endl;
 						}
 						}
 
@@ -336,7 +348,7 @@ int main() {
 
 					} else if (add_row == NULL) // Hot line call
 					{
-						mysql_get_call_price = "SELECT tariff, round, round_price FROM call_tariff WHERE call_tariff.code = '"+numberB+"'";
+						mysql_get_call_price = "SELECT tariff, round, round_price FROM call_tariff WHERE call_tariff.code = '"+numberB+"' AND plan='"+Type_call+"'";
 						query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 						add_res=mysql_store_result(conn);
@@ -383,7 +395,7 @@ int main() {
 			{
 				// just find number and if we find then just cost of call equal to price of call
 
-				mysql_get_call_price = "SELECT tariff FROM call_tariff WHERE call_tariff.code = '"+numberB+"'";
+				mysql_get_call_price = "SELECT tariff FROM call_tariff WHERE call_tariff.code = '"+numberB+"' AND plan='"+Type_call+"'";
 				query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 				add_res=mysql_store_result(conn);
@@ -409,7 +421,7 @@ int main() {
 					"WHERE call_id = '"+call_id+"'";
 			query_state=mysql_query(conn, mysql_query_str.c_str());
 			call_cost = 0.0;
-		} else
+		} } else
 		{
 			call_cost = 0.0;
 
