@@ -23,7 +23,7 @@ MYSQL_ROW row;
 MYSQL_RES *add_res;
 MYSQL_ROW add_row;
 
-////// mysql connections settings
+//////// mysql connections settings
 //const char *server="localhost";
 //const char *user="root";
 //const char *password="admin";
@@ -31,7 +31,7 @@ MYSQL_ROW add_row;
 
 
 // mysql connections settings
-// mysql connections settings
+ //mysql connections settings
 const char *server="52.8.83.48";
 const char *user="007";
 const char *password="Yeshimbetov^Karakalpak8";
@@ -63,6 +63,7 @@ double millisecond_to_second = 0.0;
 double round_with_step = 0.0;
 double fract_part = 0.0;
 
+std::string Call_description="";
 
 std::string temp_Name_country;
 int temp_number_size;
@@ -150,6 +151,7 @@ size_t get_country_code_length(std::string phone_number)
 
 std::string Type_call="";
 int countD=0;
+int countR=0;
 int main() {
 	while (true) {
 	usleep(3000);
@@ -176,7 +178,8 @@ int main() {
 	while((row=mysql_fetch_row(res))!=NULL)
 	{
 		countD++;
-		if (countD>1000) {std:cout<<"1000"<<endl;countD=0;}
+		if (countD>5000) {countD=0;countR+=5;cout<<countR<<endl;}
+		//cout<<countD<<endl;
 		call_id = boost::lexical_cast<std::string>(row[0]);
 		numberA = boost::lexical_cast<std::string>(row[1]);
 		numberB = boost::lexical_cast<std::string>(row[2]);
@@ -184,9 +187,10 @@ int main() {
 		numberA_size = numberA.size();
 		numberB_size = numberB.size();
 
-		//std::cout << numberA << std::endl;
+		//std::cout << numberA << " -__--- "<<numberB <<std::endl;
 		//std::cout << numberB << std::endl;
 		call_type_str = "";
+		call_cost = 0.0;
 		if (numberA_size == 6) // we calculate call cost if we call from 6 digit number
 		{
 			mysql_get_call_price = "SELECT tariff_plan FROM account_database.phone_numbers where number='"+numberA+"'";
@@ -194,25 +198,27 @@ int main() {
 			add_res=mysql_store_result(conn);
 			add_row=mysql_fetch_row(add_res);
 
+
 			if (add_row != NULL)
 			{
 
 			Type_call=add_row[0];
-			std::cout<<"TYPE->"<<Type_call<<std::endl;
+			Type_call=Type_call.substr(0, 3);
+			//std::cout<<"TYPE->"<<Type_call<<std::endl;
 			mysql_free_result(add_res);
 
 			if (numberB_size >= 10) // Intercity, International, Hot Line calls
 			{
 				// we not interested in numberA because it's our number, otherwise in numberB
 				// we need country code for calculate cost of call
-				current_number_prefix = numberB.substr(0, 3);
+				current_number_prefix = numberB.substr(0, 2);
 				// ################################################################################################
 				if (current_number_prefix == international_call_number_prefix) // International call
 				{
 					country_code_length = get_country_code_length(numberB);
 					country_code = international_call_number_prefix + numberB.substr(3, country_code_length);
 
-					mysql_get_call_price = "SELECT tariff, round, round_price FROM call_tariff WHERE call_tariff.code = '"+country_code+"' AND plan='"+Type_call+"'";
+					mysql_get_call_price = "SELECT tariff, round, round_price,description FROM call_tariff WHERE call_tariff.code = '"+country_code+"' AND LOCATE('"+Type_call+"',plan)";
 					query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 					add_res=mysql_store_result(conn);
@@ -224,8 +230,8 @@ int main() {
 						call_price = boost::lexical_cast<double>(add_row[0]);
 						time_round = boost::lexical_cast<double>(add_row[1]);
 						price_round = boost::lexical_cast<size_t>(add_row[2]);
-
-						/*
+                        Call_description = add_row[3];
+						/* Wt::WString::fromUTF8(
 						 *  if call seconds after dividing to round_step have fraction part then we do this procedure
 						 *  1) divide seconds to round_step (2, 3, 10 etc)
 						 *  2) take result from 1 step then get int (whole) part (use floor() c++ function)
@@ -244,8 +250,11 @@ int main() {
 							round_with_step++;
 							call_duration = round_with_step * time_round;
 						}
-					//std::cout << call_duration << std::endl;
+
 						call_cost = call_duration * (call_price/60); // this price we need write in ama_data in call_cost column in current call
+						double integral;
+						double fractional = std::modf(call_cost, &integral);
+						if (fractional>0) call_cost=integral+1;
 
 						call_type_str = "international call";
 
@@ -263,40 +272,42 @@ int main() {
 					add_row=NULL;
 
 					if (city_code==Kazakhstan_code){//if Kazakhstan
-                    std::cout<<"find KAZ"<<std::endl;
-						while (add_row == NULL && temp_number_size>3){
+                   // std::cout<<"find KAZ"<<std::endl;
+						while (add_row == NULL && temp_number_size>=3){
 							city_code = numberB.substr(0, temp_number_size);
 
-							 std::cout<<city_code<<std::endl;
+					//std::cout<<city_code<<std::endl;
 
 
-							mysql_get_call_price = "SELECT tariff, round, round_price, add_text "
-									"FROM call_tariff WHERE left(code,2)='"+Kazakhstan_code+"' AND LOCATE('"+city_code+"',code) AND plan='"+Type_call+"'";
+							mysql_get_call_price = "SELECT tariff, round, round_price, add_text,description "
+									"FROM call_tariff WHERE left(code,2)='"+Kazakhstan_code+"' AND code='"+city_code+"' AND LOCATE('"+Type_call+"',plan)";
 							query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 							add_res=mysql_store_result(conn);
 							add_row=mysql_fetch_row(add_res);
 							temp_number_size--;
+                         //  if (add_row!=NULL) std::cout<<"DFDF"<<std::endl;
+
 						}
 
 
 					}else {//if Russia
-						std::cout<<"find RUS"<<std::endl;
+					//	std::cout<<"find RUS"<<std::endl;
 
-						while (add_row == NULL && temp_number_size>3){
+						while (add_row == NULL && temp_number_size>=3){
 							city_code = numberB.substr(0, temp_number_size);
 
 
-							std::cout<<city_code<<std::endl;
+							//std::cout<<city_code<<std::endl;
 							std::string Russia_STR="Россия";
-							mysql_get_call_price = "SELECT tariff, round, round_price, add_text "
-									"FROM call_tariff WHERE country='"+Russia_STR+"' AND LOCATE('"+city_code+"',code) AND plan='"+Type_call+"'";
+							mysql_get_call_price = "SELECT tariff, round, round_price, add_text,description "
+									"FROM call_tariff WHERE country='"+Russia_STR+"' AND code='"+city_code+"' AND LOCATE('"+Type_call+"',plan)";
 							query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 							add_res=mysql_store_result(conn);
 							add_row=mysql_fetch_row(add_res);
 							temp_number_size--;
-							std::cout<<"find RUS2"<<std::endl;
+							//std::cout<<"find RUS2"<<std::endl;
 						}
 						}
 
@@ -307,10 +318,11 @@ int main() {
 
 					if (add_row != NULL) // if result not NULL we find city code in mysql table then we can calculate cost of call
 					{
+						//std::cout<<"FOUND"<<endl;
 						call_price = boost::lexical_cast<double>(add_row[0]);
 						time_round = boost::lexical_cast<double>(add_row[1]);
 						price_round = boost::lexical_cast<size_t>(add_row[2]);
-
+						Call_description = add_row[3];
 
 
 
@@ -332,12 +344,20 @@ int main() {
 							round_with_step++;
 							call_duration = round_with_step * time_round;
 						}
-						call_cost = call_duration * (call_price/60); // this price we need write in ama_data in call_cost column in current call
+						call_cost = call_duration * (call_price/60);
+
+						double integral;
+
+						double fractional = std::modf(call_cost, &integral);
+						if (fractional>0) call_cost=integral+1;
+						//std::cout << integral << std::endl;
+						// this price we need write in ama_data in call_cost column in current call
 						//std::cout<<call_cost<<"  ->"<<numberB<<std::endl;
 						// ################################################################################################
 
 
 						std::string add_text_str = boost::lexical_cast<std::string>(add_row[3]);
+						//std::cout<<add_text_str<<std::endl;
 						if (add_text_str == "Мобильная связь")
 						{
 							call_type_str = "mobile call";
@@ -346,46 +366,6 @@ int main() {
 							call_type_str = "intercity call";
 						}
 
-					} else if (add_row == NULL) // Hot line call
-					{
-						mysql_get_call_price = "SELECT tariff, round, round_price FROM call_tariff WHERE call_tariff.code = '"+numberB+"' AND plan='"+Type_call+"'";
-						query_state=mysql_query(conn, mysql_get_call_price.c_str());
-
-						add_res=mysql_store_result(conn);
-						add_row=mysql_fetch_row(add_res);
-
-						if (add_row != NULL)
-						{
-							call_price = boost::lexical_cast<double>(add_row[0]);
-							time_round = boost::lexical_cast<double>(add_row[1]);
-							price_round = boost::lexical_cast<size_t>(add_row[2]);
-
-							/*
-							 *  if call seconds after dividing to round_step have fraction part then we do this procedure
-							 *  1) divide seconds to round_step (2, 3, 10 etc)
-							 *  2) take result from 1 step then get int (whole) part (use floor() c++ function)
-							 *  3) then we this whole part increase by 1
-							 *  4) and multiply by round_step and we get the rounded value with given round_step
-							 *  else just do nothing
-							 */
-
-							millisecond_to_second = round(call_duration / 1000);
-							call_duration = millisecond_to_second;
-							fract_part = modf(millisecond_to_second / time_round, &round_with_step);
-							if (fract_part != 0)
-							{
-								round_with_step = floor(millisecond_to_second / time_round);
-								round_with_step++;
-								call_duration = round_with_step * time_round;
-							}
-							call_cost = call_duration * (call_price/60); // this price we need write in ama_data in call_cost column in current call
-
-
-							call_type_str = "hot line";
-						}
-
-						// if there no particular properties like certain length of digit or start with '1' then we just
-						// try find whole numberB in code
 					}
 
 					mysql_free_result(add_res);
@@ -395,7 +375,7 @@ int main() {
 			{
 				// just find number and if we find then just cost of call equal to price of call
 
-				mysql_get_call_price = "SELECT tariff FROM call_tariff WHERE call_tariff.code = '"+numberB+"' AND plan='"+Type_call+"'";
+				mysql_get_call_price = "SELECT tariff,description FROM call_tariff WHERE call_tariff.code = '"+numberB+"' AND LOCATE('"+Type_call+"',plan)";
 				query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
 				add_res=mysql_store_result(conn);
@@ -404,26 +384,87 @@ int main() {
 				if (add_row != NULL)
 				{
 					call_cost = boost::lexical_cast<double>(add_row[0]);
-					call_type_str = "fixed service";
+					 Call_description = add_row[3];
 				}
+				call_type_str = "fixed service";
 				mysql_free_result(add_res);
+
+
 			} else if (numberB_size == 6) {
 				call_cost = 0;
 				call_type_str = "inner";
+			}
+			else // Hot line call
+			{
+				mysql_get_call_price = "SELECT tariff, round, round_price,description FROM call_tariff WHERE call_tariff.code = '"+numberB+"' AND LOCATE('"+Type_call+"',plan)";
+				query_state=mysql_query(conn, mysql_get_call_price.c_str());
 
+				add_res=mysql_store_result(conn);
+				add_row=mysql_fetch_row(add_res);
+
+				if (add_row != NULL)
+				{
+					call_price = boost::lexical_cast<double>(add_row[0]);
+					time_round = boost::lexical_cast<double>(add_row[1]);
+					price_round = boost::lexical_cast<size_t>(add_row[2]);
+					Call_description = add_row[3];
+					/*
+					 *  if call seconds after dividing to round_step have fraction part then we do this procedure
+					 *  1) divide seconds to round_step (2, 3, 10 etc)
+					 *  2) take result from 1 step then get int (whole) part (use floor() c++ function)
+					 *  3) then we this whole part increase by 1
+					 *  4) and multiply by round_step and we get the rounded value with given round_step
+					 *  else just do nothing
+					 */
+
+					millisecond_to_second = round(call_duration / 1000);
+					call_duration = millisecond_to_second;
+					fract_part = modf(millisecond_to_second / time_round, &round_with_step);
+					if (fract_part != 0)
+					{
+						round_with_step = floor(millisecond_to_second / time_round);
+						round_with_step++;
+						call_duration = round_with_step * time_round;
+					}
+					call_cost = call_duration * (call_price/60); // this price we need write in ama_data in call_cost column in current call
+
+					double integral;
+					double fractional = std::modf(call_cost, &integral);
+					if (fractional>0) call_cost=integral+1;
+
+					call_type_str = "hot line";
+				}
+				mysql_free_result(add_res);
+				// if there no particular properties like certain length of digit or start with '1' then we just
+				// try find whole numberB in code
 			}
 
 
 			// std::cout << "call cost: " << call_cost << std::endl;
-			call_cost_str = boost::lexical_cast<std::string>(call_cost);
-			mysql_query_str = "UPDATE ama_data SET call_cost = '"+call_cost_str+"', "
-					"call_type = '"+call_type_str+"', call_direction = 'outgoing' "
-					"WHERE call_id = '"+call_id+"'";
-			query_state=mysql_query(conn, mysql_query_str.c_str());
-			call_cost = 0.0;
-		} } else
+
+//			mysql_query_str = "UPDATE ama_data SET call_cost = '"+call_cost_str+"', "
+//					"call_type = '"+call_type_str+"', call_direction = 'outgoing' "
+//					"WHERE call_id = '"+call_id+"'";
+//			query_state=mysql_query(conn, mysql_query_str.c_str());
+
+		}
+			else if (numberB_size == 6) {
+			call_cost = 0;
+			call_type_str = "inner";
+			//std::cout<<"inner"<<std::endl;
+
+
+		}else { call_cost = 0;call_type_str = "Unknown";}
+
+		call_cost_str = boost::lexical_cast<std::string>(call_cost);
+		mysql_query_str = "UPDATE ama_data SET call_cost = '"+call_cost_str+"', "
+								"call_type = '"+call_type_str+"', call_direction = 'outgoing',description='"+Call_description+"' "
+								"WHERE call_id = '"+call_id+"'";
+		query_state=mysql_query(conn, mysql_query_str.c_str());
+		call_cost = 0;
+		} else
 		{
-			call_cost = 0.0;
+			call_cost = 0;
 
 			mysql_query_str = "UPDATE ama_data SET call_direction = 'incoming',call_type = 'incoming' WHERE call_id = '"+call_id+"'";
 			query_state=mysql_query(conn, mysql_query_str.c_str());
@@ -435,7 +476,7 @@ int main() {
 	mysql_free_result(res);
 	//mysql_free_result(add_res); //double free error
 	mysql_close(conn);
-	std::cout<<"END"<<std::endl;
+	std::cout<<"END"<<std::endl;countR=0;
 }
 	return 0;
 }
